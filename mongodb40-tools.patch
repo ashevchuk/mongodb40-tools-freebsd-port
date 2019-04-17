@@ -1,0 +1,530 @@
+Index: databases/Makefile
+===================================================================
+--- databases/Makefile	(revision 499215)
++++ databases/Makefile	(working copy)
+@@ -201,6 +201,7 @@
+     SUBDIR += mongodb36
+     SUBDIR += mongodb36-tools
+     SUBDIR += mongodb40
++    SUBDIR += mongodb40-tools
+     SUBDIR += mroonga
+     SUBDIR += mrtg-mysql-load
+     SUBDIR += mtools-mongodb
+Index: databases/mongodb40-tools/Makefile
+===================================================================
+--- databases/mongodb40-tools/Makefile	(nonexistent)
++++ databases/mongodb40-tools/Makefile	(working copy)
+@@ -0,0 +1,116 @@
++# $FreeBSD$
++
++PORTNAME=		mongodb40-tools
++DISTVERSIONPREFIX=	r
++DISTVERSION=		4.0.8
++CATEGORIES=		databases
++
++MAINTAINER=		dev.ashevchuk@gmail.com
++COMMENT=		Tools for MongoDB
++
++LICENSE=		APACHE20
++
++ONLY_FOR_ARCHS=	amd64 i386
++ONLY_FOR_ARCHS_REASON= "not yet ported to anything other than i386 and amd64"
++
++BUILD_DEPENDS=		go>=${GO_LANG_VERSION}:lang/go${GO_LANG_VERSION_PATH_STR}
++
++USES=			compiler:c++14-lang localbase go
++
++GO_LANG_VERSION=       1.4
++GO_LANG_VER_PATH_STR=  ${GO_LANG_VERSION:S/.//}
++
++GO_LANG_PATH_DIR= 	.gopath
++
++SSL_USE=		my_tags=ssl
++SSL_USES=		ssl
++
++SASL_USE=		my_tags=sasl
++SASL_LIB_DEPENDS=	libsasl2.so:security/cyrus-sasl2
++
++CONFLICTS_INSTALL=	mongodb3[46] mongodb3[46]-tools
++
++USE_LDCONFIG=		yes
++
++CC=			clang
++
++USE_GITHUB=		yes
++GH_ACCOUNT=		mongodb
++GH_PROJECT=		mongo-tools
++GH_TAG=		5db0b4a18cc1366ebd368eed8e7c4d426d851f13
++
++OPTIONS_SUB=		yes
++NO_OPTIONS_SORT=	yes
++
++OPTIONS_DEFINE=	DOCS
++OPTIONS_DEFAULT=	SSL SASL MONGOFILES MONGOEXPORT MONGOIMPORT MONGORESTORE MONGODUMP
++
++OPTIONS_MULTI=		TOOLS SECURITY
++OPTIONS_MULTI_TOOLS=	BSONDUMP MONGOSTAT MONGOFILES MONGOEXPORT MONGOIMPORT MONGORESTORE MONGODUMP MONGOTOP MONGOREPLAY
++OPTIONS_MULTI_SECURITY=SSL SASL
++
++BSONDUMP_DESC=		BSON files into human-readable formats
++MONGOSTAT_DESC=	Status of a running mongod or mongos instance
++MONGOFILES_DESC=	Interface to GridFS in a MongoDB instance
++MONGOEXPORT_DESC=	JSON or CSV export of MongoDB instance data
++MONGOIMPORT_DESC=	Importing JSON, CSV, or TSV into a MongoDB instance
++MONGORESTORE_DESC=	BSON data to a MongoDB instance
++MONGODUMP_DESC=	BSON data from the contents of a MongoDB instance
++MONGOTOP_DESC=		Track the amount of data I/O time
++MONGOREPLAY_DESC=	Traffic capture and replay tool
++
++BSONDUMP_VARS=		tool_build+=bsondump
++MONGOSTAT_VARS=	tool_build+=mongostat
++MONGOFILES_VARS=	tool_build+=mongofiles
++MONGOEXPORT_VARS=	tool_build+=mongoexport
++MONGOIMPORT_VARS=	tool_build+=mongoimport
++MONGORESTORE_VARS=	tool_build+=mongorestore
++MONGODUMP_VARS=	tool_build+=mongodump
++MONGOTOP_VARS=		tool_build+=mongotop
++MONGOREPLAY_VARS=	tool_build+=mongoreplay
++
++MAKE_CMD= ${LOCALBASE}/go${GO_LANG_VER_PATH_STR}/bin/go build
++
++MY_TAGS= -tags "${USE_MY_TAGS}"
++
++.include <bsd.port.options.mk>
++
++post-patch:
++	@${ECHO_MSG} "Preparing hierarchy"
++	${MKDIR} ${WRKSRC}/${GO_LANG_PATH_DIR} && \
++	${LN} -sf ${WRKSRC}/vendor ${WRKSRC}/${GO_LANG_PATH_DIR}/src && \
++	${MKDIR} ${WRKSRC}/${GO_LANG_PATH_DIR}/src/github.com/${GH_ACCOUNT} && \
++	${LN} -sf ${WRKSRC} ${WRKSRC}/${GO_LANG_PATH_DIR}/src/github.com/${GH_ACCOUNT}/${GH_PROJECT}
++
++do-build:
++.for TOOL in ${TOOL_BUILD}
++	@${ECHO_MSG} "Building ${TOOL}"
++	${SETENV} ${MAKE_ENV} \
++	GOPATH="${WRKSRC}/${GO_LANG_PATH_DIR}:${WRKSRC}/vendor" \
++	CGO_CPPFLAGS="-isystem ${LOCALBASE}/include" \
++	CGO_LDFLAGS="-L${LOCALBASE}/lib" \
++	${MAKE_CMD} \
++	-o ${WRKSRC}/bin/${TOOL} \
++	${MY_TAGS} \
++	${WRKSRC}/${TOOL}/main/${TOOL}.go
++.endfor
++
++do-install:
++.for TOOL in ${TOOL_BUILD}
++	@${ECHO_MSG} "Installing ${TOOL}"
++	${INSTALL_PROGRAM} ${WRKSRC}/bin/${TOOL} ${STAGEDIR}${PREFIX}/bin/
++.endfor
++
++	${MKDIR} ${STAGEDIR}${DOCSDIR}
++.for DOC in README.md CONTRIBUTING.md LICENSE.md THIRD-PARTY-NOTICES
++	@${ECHO_MSG} "Installing ${DOC}"
++	${INSTALL_MAN} ${WRKSRC}/${DOC} ${STAGEDIR}${DOCSDIR}
++.endfor
++
++post-install:
++.for TOOL in ${TOOL_BUILD}
++	@${ECHO_MSG} "Stripping ${TOOL}"
++	${STRIP_CMD} ${STAGEDIR}${PREFIX}/bin/${TOOL}
++.endfor
++
++.include <bsd.port.mk>
+Index: databases/mongodb40-tools/distinfo
+===================================================================
+--- databases/mongodb40-tools/distinfo	(nonexistent)
++++ databases/mongodb40-tools/distinfo	(working copy)
+@@ -0,0 +1,3 @@
++TIMESTAMP = 1555539033
++SHA256 (mongodb-mongo-tools-r4.0.8_GH0.tar.gz) = c224df31f85476c0f651c4b5d70871b581f14bf16a8595a4aa7717e66ad07c5c
++SIZE (mongodb-mongo-tools-r4.0.8_GH0.tar.gz) = 11134459
+Index: databases/mongodb40-tools/files/patch-common_util_file.go
+===================================================================
+--- databases/mongodb40-tools/files/patch-common_util_file.go	(nonexistent)
++++ databases/mongodb40-tools/files/patch-common_util_file.go	(working copy)
+@@ -0,0 +1,325 @@
++--- common/util/file.go.orig  2018-11-21 17:52:58 UTC
+++++ common/util/file.go
++@@ -9,11 +9,68 @@
++ import (
++ 	"bufio"
++ 	"io"
++-	"net/url"
++ 	"os"
++ 	"path/filepath"
+++	"strconv"
++ )
++ 
+++// Error reports an error and the operation and URL that caused it.
+++type Error struct {
+++	Op  string
+++	URL string
+++	Err error
+++}
+++
+++func (e *Error) Error() string { return e.Op + " " + e.URL + ": " + e.Err.Error() }
+++
+++func ishex(c byte) bool {
+++	switch {
+++	case '0' <= c && c <= '9':
+++		return true
+++	case 'a' <= c && c <= 'f':
+++		return true
+++	case 'A' <= c && c <= 'F':
+++		return true
+++	}
+++	return false
+++}
+++
+++func unhex(c byte) byte {
+++	switch {
+++	case '0' <= c && c <= '9':
+++		return c - '0'
+++	case 'a' <= c && c <= 'f':
+++		return c - 'a' + 10
+++	case 'A' <= c && c <= 'F':
+++		return c - 'A' + 10
+++	}
+++	return 0
+++}
+++
+++type encoding int
+++
+++const (
+++	encodePath encoding = 1 + iota
+++	encodePathSegment
+++	encodeHost
+++	encodeZone
+++	encodeUserPassword
+++	encodeQueryComponent
+++	encodeFragment
+++)
+++
+++type EscapeError string
+++
+++func (e EscapeError) Error() string {
+++	return "invalid URL escape " + strconv.Quote(string(e))
+++}
+++
+++type InvalidHostError string
+++
+++func (e InvalidHostError) Error() string {
+++	return "invalid character " + strconv.Quote(string(e)) + " in host name"
+++}
+++
++ // GetFieldsFromFile fetches the first line from the contents of the file
++ // at "path"
++ func GetFieldsFromFile(path string) ([]string, error) {
++@@ -42,11 +99,11 @@
++ }
++ 
++ func EscapeCollectionName(collName string) string {
++-	return url.PathEscape(collName)
+++	return PathEscape(collName)
++ }
++ 
++ func UnescapeCollectionName(escapedCollName string) (string, error) {
++-	return url.PathUnescape(escapedCollName)
+++	return PathUnescape(escapedCollName)
++ }
++ 
++ type WrappedReadCloser struct {
++@@ -76,3 +133,238 @@
++ 	}
++ 	return innerErr
++ }
+++
+++// Return true if the specified character should be escaped when
+++// appearing in a URL string, according to RFC 3986.
+++//
+++// Please be informed that for now shouldEscape does not check all
+++// reserved characters correctly. See golang.org/issue/5684.
+++func shouldEscape(c byte, mode encoding) bool {
+++	// §2.3 Unreserved characters (alphanum)
+++	if 'A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || '0' <= c && c <= '9' {
+++		return false
+++	}
+++
+++	if mode == encodeHost || mode == encodeZone {
+++		// §3.2.2 Host allows
+++		//	sub-delims = "!" / "$" / "&" / "'" / "(" / ")" / "*" / "+" / "," / ";" / "="
+++		// as part of reg-name.
+++		// We add : because we include :port as part of host.
+++		// We add [ ] because we include [ipv6]:port as part of host.
+++		// We add < > because they're the only characters left that
+++		// we could possibly allow, and Parse will reject them if we
+++		// escape them (because hosts can't use %-encoding for
+++		// ASCII bytes).
+++		switch c {
+++		case '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=', ':', '[', ']', '<', '>', '"':
+++			return false
+++		}
+++	}
+++
+++	switch c {
+++	case '-', '_', '.', '~': // §2.3 Unreserved characters (mark)
+++		return false
+++
+++	case '$', '&', '+', ',', '/', ':', ';', '=', '?', '@': // §2.2 Reserved characters (reserved)
+++		// Different sections of the URL allow a few of
+++		// the reserved characters to appear unescaped.
+++		switch mode {
+++		case encodePath: // §3.3
+++			// The RFC allows : @ & = + $ but saves / ; , for assigning
+++			// meaning to individual path segments. This package
+++			// only manipulates the path as a whole, so we allow those
+++			// last three as well. That leaves only ? to escape.
+++			return c == '?'
+++
+++		case encodePathSegment: // §3.3
+++			// The RFC allows : @ & = + $ but saves / ; , for assigning
+++			// meaning to individual path segments.
+++			return c == '/' || c == ';' || c == ',' || c == '?'
+++
+++		case encodeUserPassword: // §3.2.1
+++			// The RFC allows ';', ':', '&', '=', '+', '$', and ',' in
+++			// userinfo, so we must escape only '@', '/', and '?'.
+++			// The parsing of userinfo treats ':' as special so we must escape
+++			// that too.
+++			return c == '@' || c == '/' || c == '?' || c == ':'
+++
+++		case encodeQueryComponent: // §3.4
+++			// The RFC reserves (so we must escape) everything.
+++			return true
+++
+++		case encodeFragment: // §4.1
+++			// The RFC text is silent but the grammar allows
+++			// everything, so escape nothing.
+++			return false
+++		}
+++	}
+++
+++	if mode == encodeFragment {
+++		// RFC 3986 §2.2 allows not escaping sub-delims. A subset of sub-delims are
+++		// included in reserved from RFC 2396 §2.2. The remaining sub-delims do not
+++		// need to be escaped. To minimize potential breakage, we apply two restrictions:
+++		// (1) we always escape sub-delims outside of the fragment, and (2) we always
+++		// escape single quote to avoid breaking callers that had previously assumed that
+++		// single quotes would be escaped. See issue #19917.
+++		switch c {
+++		case '!', '(', ')', '*':
+++			return false
+++		}
+++	}
+++
+++	// Everything else must be escaped.
+++	return true
+++}
+++
+++// PathUnescape does the inverse transformation of PathEscape,
+++// converting each 3-byte encoded substring of the form "%AB" into the
+++// hex-decoded byte 0xAB. It returns an error if any % is not followed
+++// by two hexadecimal digits.
+++//
+++// PathUnescape is identical to QueryUnescape except that it does not
+++// unescape '+' to ' ' (space).
+++func PathUnescape(s string) (string, error) {
+++	return unescape(s, encodePathSegment)
+++}
+++
+++// unescape unescapes a string; the mode specifies
+++// which section of the URL string is being unescaped.
+++func unescape(s string, mode encoding) (string, error) {
+++	// Count %, check that they're well-formed.
+++	n := 0
+++	hasPlus := false
+++	for i := 0; i < len(s); {
+++		switch s[i] {
+++		case '%':
+++			n++
+++			if i+2 >= len(s) || !ishex(s[i+1]) || !ishex(s[i+2]) {
+++				s = s[i:]
+++				if len(s) > 3 {
+++					s = s[:3]
+++				}
+++				return "", EscapeError(s)
+++			}
+++			// Per https://tools.ietf.org/html/rfc3986#page-21
+++			// in the host component %-encoding can only be used
+++			// for non-ASCII bytes.
+++			// But https://tools.ietf.org/html/rfc6874#section-2
+++			// introduces %25 being allowed to escape a percent sign
+++			// in IPv6 scoped-address literals. Yay.
+++			if mode == encodeHost && unhex(s[i+1]) < 8 && s[i:i+3] != "%25" {
+++				return "", EscapeError(s[i : i+3])
+++			}
+++			if mode == encodeZone {
+++				// RFC 6874 says basically "anything goes" for zone identifiers
+++				// and that even non-ASCII can be redundantly escaped,
+++				// but it seems prudent to restrict %-escaped bytes here to those
+++				// that are valid host name bytes in their unescaped form.
+++				// That is, you can use escaping in the zone identifier but not
+++				// to introduce bytes you couldn't just write directly.
+++				// But Windows puts spaces here! Yay.
+++				v := unhex(s[i+1])<<4 | unhex(s[i+2])
+++				if s[i:i+3] != "%25" && v != ' ' && shouldEscape(v, encodeHost) {
+++					return "", EscapeError(s[i : i+3])
+++				}
+++			}
+++			i += 3
+++		case '+':
+++			hasPlus = mode == encodeQueryComponent
+++			i++
+++		default:
+++			if (mode == encodeHost || mode == encodeZone) && s[i] < 0x80 && shouldEscape(s[i], mode) {
+++				return "", InvalidHostError(s[i : i+1])
+++			}
+++			i++
+++		}
+++	}
+++
+++	if n == 0 && !hasPlus {
+++		return s, nil
+++	}
+++
+++	t := make([]byte, len(s)-2*n)
+++	j := 0
+++	for i := 0; i < len(s); {
+++		switch s[i] {
+++		case '%':
+++			t[j] = unhex(s[i+1])<<4 | unhex(s[i+2])
+++			j++
+++			i += 3
+++		case '+':
+++			if mode == encodeQueryComponent {
+++				t[j] = ' '
+++			} else {
+++				t[j] = '+'
+++			}
+++			j++
+++			i++
+++		default:
+++			t[j] = s[i]
+++			j++
+++			i++
+++		}
+++	}
+++	return string(t), nil
+++}
+++
+++// PathEscape escapes the string so it can be safely placed
+++// inside a URL path segment.
+++func PathEscape(s string) string {
+++	return escape(s, encodePathSegment)
+++}
+++
+++func escape(s string, mode encoding) string {
+++	spaceCount, hexCount := 0, 0
+++	for i := 0; i < len(s); i++ {
+++		c := s[i]
+++		if shouldEscape(c, mode) {
+++			if c == ' ' && mode == encodeQueryComponent {
+++				spaceCount++
+++			} else {
+++				hexCount++
+++			}
+++		}
+++	}
+++
+++	if spaceCount == 0 && hexCount == 0 {
+++		return s
+++	}
+++
+++	var buf [64]byte
+++	var t []byte
+++
+++	required := len(s) + 2*hexCount
+++	if required <= len(buf) {
+++		t = buf[:required]
+++	} else {
+++		t = make([]byte, required)
+++	}
+++
+++	if hexCount == 0 {
+++		copy(t, s)
+++		for i := 0; i < len(s); i++ {
+++			if s[i] == ' ' {
+++				t[i] = '+'
+++			}
+++		}
+++		return string(t)
+++	}
+++
+++	j := 0
+++	for i := 0; i < len(s); i++ {
+++		switch c := s[i]; {
+++		case c == ' ' && mode == encodeQueryComponent:
+++			t[j] = '+'
+++			j++
+++		case shouldEscape(c, mode):
+++			t[j] = '%'
+++			t[j+1] = "0123456789ABCDEF"[c>>4]
+++			t[j+2] = "0123456789ABCDEF"[c&15]
+++			j += 3
+++		default:
+++			t[j] = s[i]
+++			j++
+++		}
+++	}
+++	return string(t)
+++}
+Index: databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_build.go
+===================================================================
+--- databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_build.go	(nonexistent)
++++ databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_build.go	(working copy)
+@@ -0,0 +1,9 @@
++--- vendor/github.com/10gen/openssl/build.go.orig	2018-11-21 19:00:22 UTC
+++++ vendor/github.com/10gen/openssl/build.go
++@@ -20,5 +20,6 @@
++ // #cgo CFLAGS: -Wno-deprecated-declarations
++ // #cgo windows CFLAGS: -DWIN32_LEAN_AND_MEAN -I"c:/openssl/include"
++ // #cgo windows LDFLAGS: -lssleay32 -llibeay32 -lcrypt32 -L "c:/openssl/bin"
+++// #cgo freebsd LDFLAGS: -lssl -lcrypto
++ // #cgo darwin LDFLAGS: -framework CoreFoundation -framework Foundation -framework Security
++ import "C"
+Index: databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_init__posix.go
+===================================================================
+--- databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_init__posix.go	(nonexistent)
++++ databases/mongodb40-tools/files/patch-vendor_src_github.com_spacemonkeygo_openssl_init__posix.go	(working copy)
+@@ -0,0 +1,11 @@
++--- vendor/github.com/10gen/openssl/init_posix.go.orig	2018-11-21 17:52:58 UTC
+++++ vendor/github.com/10gen/openssl/init_posix.go
++@@ -12,7 +12,7 @@
++ // See the License for the specific language governing permissions and
++ // limitations under the License.
++ 
++-// +build linux darwin cgo
+++// +build linux darwin freebsd cgo
++ // +build !windows
++ 
++ package openssl
+Index: databases/mongodb40-tools/pkg-descr
+===================================================================
+--- databases/mongodb40-tools/pkg-descr	(nonexistent)
++++ databases/mongodb40-tools/pkg-descr	(working copy)
+@@ -0,0 +1,6 @@
++Since MongoDB 3.2, the tools bsondump, mongoimport, mongoexport, mongodump,
++mongorestore, mongostat, mongofiles and mongotop have been placed
++in a separate package and rewritten in Go. These are useful utilities for
++managing a MongoDB instance.
++
++WWW: https://github.com/mongodb/mongo-tools
+Index: databases/mongodb40-tools/pkg-plist
+===================================================================
+--- databases/mongodb40-tools/pkg-plist	(nonexistent)
++++ databases/mongodb40-tools/pkg-plist	(working copy)
+@@ -0,0 +1,13 @@
++%%BSONDUMP%%bin/bsondump
++%%MONGODUMP%%bin/mongodump
++%%MONGOEXPORT%%bin/mongoexport
++%%MONGOFILES%%bin/mongofiles
++%%MONGOIMPORT%%bin/mongoimport
++%%MONGORESTORE%%bin/mongorestore
++%%MONGOTOP%%bin/mongoreplay
++%%MONGOSTAT%%bin/mongostat
++%%MONGOTOP%%bin/mongotop
++%%PORTDOCS%%%%DOCSDIR%%/LICENSE.md
++%%PORTDOCS%%%%DOCSDIR%%/README.md
++%%PORTDOCS%%%%DOCSDIR%%/CONTRIBUTING.md
++%%PORTDOCS%%%%DOCSDIR%%/THIRD-PARTY-NOTICES
